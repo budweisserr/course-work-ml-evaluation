@@ -2,3 +2,4 @@
 /venv/*
 /model/dataset/heart_disease_uci.csv
 /.idea/*
+.env
