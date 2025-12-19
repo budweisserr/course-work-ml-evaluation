@@ -95,6 +95,12 @@ PredictionResult PythonBridge::predict(const std::vector<float>& features) {
     QString response = sendCommand(QString::fromStdString(request.dump()));
     nmjson json = parseResponse(response);
 
+    if (!json.is_object()) {
+        result.success = false;
+        result.error_message = "Invalid response from Python (check logs)";
+        return result;
+    }
+
     if (json.value("status", "") == "success") {
         result.success = true;
         result.prediction = json.value("prediction", 0);
