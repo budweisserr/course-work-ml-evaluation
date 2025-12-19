@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 
+#include "env_loader.h"
 #include "model_info.h"
 #include "prediction_result.h"
 #include "json.hpp"
@@ -22,7 +23,7 @@ public:
   explicit PythonBridge(QObject *parent = nullptr);
   ~PythonBridge();
 
-  bool initialize(const QString& python_script);
+  bool initialize(const QString& pythonScript = "predict_service.py");
   ModelInfo getModelInfo();
   PredictionResult predict(const std::vector<float>& features);
   void shutdown();
