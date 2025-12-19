@@ -1,4 +1,4 @@
-#include "../../include/app/python_bridge.h"
+#include "python_bridge.h"
 
 PythonBridge::PythonBridge(QObject* parent)
     : QObject(parent),
