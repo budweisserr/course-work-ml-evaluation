@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(SOURCES
         src/main.cpp
         src/app/python_bridge.cpp
+        src/app/main_window.cpp
 )
 
 set(QT_REQUIRED_COMPONENTS Widgets)
