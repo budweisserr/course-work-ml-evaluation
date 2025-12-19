@@ -2,189 +2,198 @@
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     bridge = std::make_unique<PythonBridge>(this);
-    
-    connect(bridge.get(), &PythonBridge::errorOccurred, 
-            this, &MainWindow::onPythonError);
-    
-    if (!bridge->initialize("predict_service.py")) {
-        QMessageBox::critical(this, "error", "failed to initialize python bridge");
-        close();
+    connect(bridge.get(), &PythonBridge::errorOccurred, this, &MainWindow::onPythonError);
+
+    auto env = EnvLoader::load();
+    QString pythonService = QString::fromStdString(env["PYTHON_SERVICE_PATH"]);
+
+    if (!bridge->initialize(pythonService)) {
+        QMessageBox::critical(this, "System Error", "Could not initialize Python Bridge.\nCheck logs.");
+        QTimer::singleShot(0, this, &MainWindow::close);
         return;
     }
-    
+
     modelInfo = bridge->getModelInfo();
-    
     if (modelInfo.features.empty()) {
-        QMessageBox::critical(this, "error", "failed to load model info");
-        close();
+        QMessageBox::critical(this, "Model Error", "Failed to load model metadata.");
+        QTimer::singleShot(0, this, &MainWindow::close);
         return;
     }
-    
+
     setupUi();
 }
 
 void MainWindow::setupUi() {
-    setWindowTitle("heart disease risk predictor");
-    resize(600, 750);
-    
+    setWindowTitle("Heart Disease Risk Predictor");
+    resize(500, 700);
+
+    QString style = R"(
+        QMainWindow { background-color: #f5f7fa; }
+        QLabel { font-family: 'Segoe UI', sans-serif; color: #2c3e50; }
+        QLabel#Title { font-size: 22px; font-weight: bold; color: #34495e; margin-bottom: 10px; }
+        QLabel#Subtitle { font-size: 12px; color: #7f8c8d; }
+        QLineEdit {
+            padding: 8px; border: 1px solid #bdc3c7; border-radius: 4px; background: white; font-size: 14px;
+        }
+        QLineEdit:focus { border: 2px solid #3498db; }
+        QLineEdit[error="true"] { border: 2px solid #e74c3c; background: #fdf0ef; }
+        QPushButton {
+            background-color: #3498db; color: white; padding: 12px;
+            border-radius: 6px; font-size: 14px; font-weight: bold;
+        }
+        QPushButton:hover { background-color: #2980b9; }
+        QPushButton:disabled { background-color: #bdc3c7; }
+        QPushButton#ClearBtn { background-color: #ecf0f1; color: #7f8c8d; border: 1px solid #bdc3c7; }
+        QPushButton#ClearBtn:hover { background-color: #bdc3c7; color: white; }
+        QScrollArea { border: none; background: transparent; }
+    )";
+    this->setStyleSheet(style);
+
     central = new QWidget(this);
     setCentralWidget(central);
-    
     mainLayout = new QVBoxLayout(central);
-    
-    title = new QLabel("heart disease risk assessment", this);
-    QFont titleFont = title->font();
-    titleFont.setPointSize(16);
-    titleFont.setBold(true);
-    title->setFont(titleFont);
+    mainLayout->setSpacing(15);
+    mainLayout->setContentsMargins(30, 30, 30, 30);
+
+    title = new QLabel("Heart Disease Assessment", this);
+    title->setObjectName("Title");
     title->setAlignment(Qt::AlignCenter);
-    //titleFont.addWidget(title);
-    
-    modelInfoLabel = new QLabel(this);
-    modelInfoLabel->setText(
-        QString("model: %1 | accuracy: %2%")
+    mainLayout->addWidget(title);
+
+    modelInfoLabel = new QLabel(QString("Model: %1 | Accuracy: %2%")
         .arg(QString::fromStdString(modelInfo.model_name))
-        .arg(modelInfo.accuracy * 100, 0, 'f', 1)
-    );
+        .arg(modelInfo.accuracy * 100, 0, 'f', 1), this);
+    modelInfoLabel->setObjectName("Subtitle");
     modelInfoLabel->setAlignment(Qt::AlignCenter);
-    modelInfoLabel->setStyleSheet("QLabel { color: #666; margin: 5px; }");
     mainLayout->addWidget(modelInfoLabel);
-    
+
     scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
     scrollWidget = new QWidget();
     grid = new QGridLayout(scrollWidget);
-    
+    grid->setSpacing(15);
+
     std::map<std::string, std::string> featureDesc = {
-        {"age", "age (years)"},
-        {"sex", "sex (0=female, 1=male)"},
-        {"cp", "chest pain type (0-3)"},
-        {"trestbps", "resting blood pressure (mm hg)"},
-        {"chol", "cholesterol (mg/dl)"},
-        {"fbs", "fasting blood sugar >120 (0/1)"},
-        {"restecg", "resting ecg (0-2)"},
-        {"thalch", "max heart rate"},
-        {"exang", "exercise angina (0/1)"},
-        {"oldpeak", "st depression"},
-        {"slope", "st slope (0-2)"},
-        {"ca", "vessels colored (0-3)"},
-        {"thal", "thalassemia (1-3)"}
+        {"age", "Age (years)"}, {"sex", "Sex (0=F, 1=M)"}, {"cp", "Chest Pain (0-3)"},
+        {"trestbps", "Resting BP (mm Hg)"}, {"chol", "Cholesterol (mg/dl)"},
+        {"fbs", "Fasting Sugar >120 (0/1)"}, {"restecg", "Resting ECG (0-2)"},
+        {"thalch", "Max Heart Rate"}, {"exang", "Exercise Angina (0/1)"},
+        {"oldpeak", "ST Depression"}, {"slope", "ST Slope (0-2)"},
+        {"ca", "Vessels Colored (0-3)"}, {"thal", "Thalassemia (1-3)"}
     };
-    
+
     int row = 0;
     for (const auto& feature : modelInfo.features) {
         QLabel* label = new QLabel(QString::fromStdString(
             featureDesc.count(feature) ? featureDesc[feature] : feature
         ), scrollWidget);
-        
+        label->setFont(QFont("Segoe UI", 10, QFont::Bold));
+
         QLineEdit* input = new QLineEdit(scrollWidget);
-        input->setPlaceholderText("enter value");
-        
+        input->setPlaceholderText("0.0");
+
+        input->setValidator(new QDoubleValidator(0, 1000, 2, input));
+
         grid->addWidget(label, row, 0);
         grid->addWidget(input, row, 1);
-        
         inputFields[feature] = input;
         row++;
     }
-    
+
     scroll->setWidget(scrollWidget);
     mainLayout->addWidget(scroll);
-    
-    resultLabel = new QLabel("enter patient data and click predict", this);
+
+    resultLabel = new QLabel("Enter patient data to begin", this);
     resultLabel->setAlignment(Qt::AlignCenter);
-    resultLabel->setStyleSheet("QLabel { padding: 15px; font-size: 14pt; }");
-    resultLabel->setWordWrap(true);
+    resultLabel->setStyleSheet("background: #ecf0f1; border-radius: 6px; padding: 15px; color: #7f8c8d;");
     mainLayout->addWidget(resultLabel);
-    
+
     buttonLayout = new QHBoxLayout();
-    
-    predictButton = new QPushButton("predict", this);
-    predictButton->setStyleSheet("QPushButton { padding: 10px; font-size: 12pt; }");
+
+    clearButton = new QPushButton("Clear", this);
+    clearButton->setObjectName("ClearBtn");
+
+    predictButton = new QPushButton("Analyze Risk", this);
+    predictButton->setCursor(Qt::PointingHandCursor);
+
     connect(predictButton, &QPushButton::clicked, this, &MainWindow::onPredictClicked);
-    
-    clearButton = new QPushButton("clear", this);
-    clearButton->setStyleSheet("QPushButton { padding: 10px; font-size: 12pt; }");
     connect(clearButton, &QPushButton::clicked, this, &MainWindow::onClearClicked);
-    
-    buttonLayout->addWidget(predictButton);
+
     buttonLayout->addWidget(clearButton);
+    buttonLayout->addWidget(predictButton);
     mainLayout->addLayout(buttonLayout);
 }
 
-std::vector<float> MainWindow::collectFeatures() {
-    std::vector<float> features;
-    
-    for (const auto& feature_name : modelInfo.features) {
-        auto it = inputFields.find(feature_name);
-        if (it == inputFields.end()) {
-            throw std::runtime_error("missing input field: " + feature_name);
-        }
-        
-        QString text = it->second->text().trimmed();
+// Helper to validate and collect data gracefully
+std::optional<std::vector<float>> MainWindow::validateAndCollect() {
+    std::vector<float> data;
+    bool hasError = false;
+
+    for (const auto& feature : modelInfo.features) {
+        QLineEdit* field = inputFields[feature];
+        QString text = field->text().trimmed();
+
         if (text.isEmpty()) {
-            throw std::runtime_error("empty field: " + feature_name);
+            field->setProperty("error", true);
+            field->style()->unpolish(field);
+            field->style()->polish(field);
+            hasError = true;
+        } else {
+            field->setProperty("error", false);
+            field->style()->unpolish(field);
+            field->style()->polish(field);
+            data.push_back(text.toFloat());
         }
-        
-        bool ok;
-        float value = text.toFloat(&ok);
-        if (!ok) {
-            throw std::runtime_error("invalid value for: " + feature_name);
-        }
-        
-        features.push_back(value);
     }
-    
-    return features;
+
+    if (hasError) return std::nullopt;
+    return data;
 }
 
 void MainWindow::onPredictClicked() {
-    try {
-        predictButton->setEnabled(false);
-        
-        auto features = collectFeatures();
-        PredictionResult result = bridge->predict(features);
-        
-        if (!result.success) {
-            QMessageBox::warning(this, "prediction error", 
-                QString::fromStdString(result.error_message));
-            predictButton->setEnabled(true);
-            return;
-        }
-        
-        QString risk_text;
-        QString style;
-        
-        if (result.prediction == 0) {
-            risk_text = QString("risk: LOW\nno heart disease detected\nprobability: %1%")
-                .arg((1 - result.probability) * 100, 0, 'f', 1);
-            style = "QLabel { background-color: #4CAF50; color: white; "
-                   "padding: 15px; font-size: 14pt; font-weight: bold; }";
-        } else {
-            risk_text = QString("risk: HIGH\nheart disease detected\nprobability: %1%")
-                .arg(result.probability * 100, 0, 'f', 1);
-            style = "QLabel { background-color: #F44336; color: white; "
-                   "padding: 15px; font-size: 14pt; font-weight: bold; }";
-        }
-        
-        resultLabel->setText(risk_text);
-        resultLabel->setStyleSheet(style);
-        
-        predictButton->setEnabled(true);
-        
-    } catch (const std::exception& e) {
-        QMessageBox::warning(this, "input error", e.what());
-        predictButton->setEnabled(true);
+    auto featuresOpt = validateAndCollect();
+
+    if (!featuresOpt.has_value()) {
+        resultLabel->setText("Missing Information\nPlease fill in all highlighted fields.");
+        resultLabel->setStyleSheet("background: #e74c3c; color: white; padding: 15px; border-radius: 6px; font-weight: bold;");
+        return;
     }
+
+    predictButton->setEnabled(false);
+    resultLabel->setText("Analyzing...");
+
+    PredictionResult result = bridge->predict(featuresOpt.value());
+
+    if (!result.success) {
+        resultLabel->setText("Error: " + QString::fromStdString(result.error_message));
+        resultLabel->setStyleSheet("background: #34495e; color: white; padding: 15px;");
+    } else {
+        bool highRisk = (result.prediction == 1);
+        float prob = (highRisk ? result.probability : (1.0 - result.probability)) * 100.0;
+
+        QString text = QString("RISK: %1\nProbability: %2%")
+                .arg(highRisk ? "HIGH" : "LOW")
+                .arg(prob, 0, 'f', 1);
+
+        QString color = highRisk ? "#e74c3c" : "#2ecc71"; // Red or Green
+        resultLabel->setText(text);
+        resultLabel->setStyleSheet(QString("background: %1; color: white; padding: 15px; border-radius: 6px; font-size: 16px; font-weight: bold;").arg(color));
+    }
+
+    predictButton->setEnabled(true);
 }
 
 void MainWindow::onClearClicked() {
     for (auto& pair : inputFields) {
         pair.second->clear();
+        pair.second->setProperty("error", false);
+        pair.second->style()->unpolish(pair.second);
+        pair.second->style()->polish(pair.second);
     }
-    resultLabel->setText("enter patient data and click predict");
-    resultLabel->setStyleSheet("QLabel { padding: 15px; font-size: 14pt; }");
+    resultLabel->setText("Enter patient data to begin");
+    resultLabel->setStyleSheet("background: #ecf0f1; border-radius: 6px; padding: 15px; color: #7f8c8d;");
 }
 
 void MainWindow::onPythonError(const QString& error) {
-    qDebug() << "python error:" << error;
+    qWarning() << "Bridge Error:" << error;
 }
