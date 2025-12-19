@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(SOURCES
         src/main.cpp
-        src/python_bridge.cpp
+        src/app/python_bridge.cpp
 )
 
 set(QT_REQUIRED_COMPONENTS Widgets)
@@ -34,5 +34,6 @@ target_link_libraries(course-work-ml-evaluation PRIVATE
 target_include_directories(course-work-ml-evaluation PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/app
         ${CMAKE_CURRENT_SOURCE_DIR}/include/dto
 )
