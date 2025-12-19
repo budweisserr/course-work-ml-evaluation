@@ -3,3 +3,6 @@
 /model/dataset/heart_disease_uci.csv
 /.idea/*
 .env
+/model/src/best_model.pkl
+/model/src/model_metadata.json
+/model/src/scaler.pkl
