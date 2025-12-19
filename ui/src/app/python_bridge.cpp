@@ -1,158 +1,119 @@
 #include "python_bridge.h"
+#include <QCoreApplication>
+#include <QFile>
+#include <QFileInfo>
 
 PythonBridge::PythonBridge(QObject* parent)
-    : QObject(parent),
-      process(nullptr),
-      initialized(false)
-{
-}
+    : QObject(parent), process(nullptr), initialized(false) {}
 
-PythonBridge::~PythonBridge()
-{
+PythonBridge::~PythonBridge() {
     shutdown();
 }
 
-bool PythonBridge::initialize(const QString& python_script)
-{
+bool PythonBridge::initialize(const QString& pythonScript) {
     process = new QProcess(this);
 
-    process->start("python3", QStringList() << python_script);
+    process->setProcessChannelMode(QProcess::MergedChannels);
+    auto env = EnvLoader::load();
+
+    QString pythonPath = QString::fromStdString(env["PYTHON_INTERPRETER_PATH"]);
+
+    if (!QFile::exists(pythonPath)) {
+        qWarning() << "Venv not found at:" << pythonPath << "using system python3";
+        pythonPath = "python3";
+    }
+
+    process->start(pythonPath, QStringList() << pythonScript);
 
     if (!process->waitForStarted(5000)) {
-        emit errorOccurred("failed to start python process");
+        emit errorOccurred("Failed to start Python process: " + process->errorString());
         return false;
     }
 
     initialized = true;
-    qDebug() << "python bridge initialized";
+    qDebug() << "Python bridge initialized using:" << pythonPath;
     return true;
 }
 
-QString PythonBridge::sendCommand(const QString& command)
-{
-    if (!initialized || !process) {
-        return {};
-    }
+QString PythonBridge::sendCommand(const QString& command) {
+    if (!initialized || !process) return {};
 
-    QByteArray data = command.toUtf8();
-    data.append('\n');
-    process->write(data);
-    process->waitForBytesWritten(1000);
+    process->write(command.toUtf8() + "\n");
 
     if (!process->waitForReadyRead(5000)) {
-        emit errorOccurred("timeout waiting for python response");
+        QByteArray crashLog = process->readAll();
+        if (!crashLog.isEmpty()) {
+            qDebug() << "Python Crash Log:" << crashLog;
+        }
+        emit errorOccurred("Timeout waiting for response");
         return {};
     }
 
-    QString response = QString::fromUtf8(process->readLine()).trimmed();
-    return response;
+    return QString::fromUtf8(process->readAll()).trimmed();
 }
 
-nmjson PythonBridge::parseResponse(const QString& response)
-{
-    QString trimmed = response.trimmed();
-    if (trimmed.isEmpty()) {
-        return nmjson{};
-    }
+nmjson PythonBridge::parseResponse(const QString& response) {
+    if (response.isEmpty()) return nmjson{};
 
     try {
-        return nmjson::parse(trimmed.toStdString());
+        return nmjson::parse(response.toStdString());
     } catch (const nmjson::parse_error& e) {
-        qWarning() << "failed to parse json response:" << e.what();
+        qWarning() << "JSON Parse Error. Raw Output:" << response;
         return nmjson{};
     }
 }
 
-ModelInfo PythonBridge::getModelInfo()
-{
+ModelInfo PythonBridge::getModelInfo() {
     ModelInfo info{};
-
     QString response = sendCommand("INFO");
     nmjson json = parseResponse(response);
 
-    if (!json.is_object()) {
-        emit errorOccurred("invalid json response for model info");
+    if (!json.is_object() || json.value("status", "") != "success") {
+        emit errorOccurred("Failed to retrieve model info");
         return info;
     }
 
-    std::string status = json.value("status", std::string{});
-    if (status != "success") {
-        emit errorOccurred("failed to get model info");
-        return info;
-    }
-
-    if (!json.contains("data") || !json["data"].is_object()) {
-        emit errorOccurred("model info response missing data field");
-        return info;
-    }
-
-    const nmjson& data = json["data"];
-
-    info.model_name = data.value("model_name", std::string{});
+    auto data = json["data"];
+    info.model_name = data.value("model_name", "Unknown");
     info.num_features = data.value("num_features", 0);
+    info.accuracy = data.value("metrics", nmjson::object()).value("accuracy", 0.0);
 
-    if (data.contains("features") && data["features"].is_array()) {
-        for (const auto& f : data["features"]) {
+    if (data.contains("features")) {
+        for (const auto& f : data["features"])
             info.features.push_back(f.get<std::string>());
-        }
-    }
-
-    if (data.contains("metrics") && data["metrics"].is_object()) {
-        const nmjson& metrics = data["metrics"];
-        info.accuracy  = metrics.value("accuracy",  0.0);
-        info.precision = metrics.value("precision", 0.0);
-        info.recall    = metrics.value("recall",    0.0);
-        info.f1_score  = metrics.value("f1_score",  0.0);
     }
 
     return info;
 }
 
-PredictionResult PythonBridge::predict(const std::vector<float>& features)
-{
+PredictionResult PythonBridge::predict(const std::vector<float>& features) {
     PredictionResult result{};
-    result.success = false;
 
     nmjson request;
     request["features"] = features;
 
-    QString command = QString::fromStdString(request.dump());
-    QString response = sendCommand(command);
+    QString response = sendCommand(QString::fromStdString(request.dump()));
     nmjson json = parseResponse(response);
 
-    if (!json.is_object()) {
-        result.error_message = "invalid json response from python";
+    if (json.value("status", "") == "success") {
+        result.success = true;
+        result.prediction = json.value("prediction", 0);
+        result.probability = json.value("probability", 0.0);
+    } else {
+        result.success = false;
+        result.error_message = json.value("message", "Unknown error");
         emit errorOccurred(QString::fromStdString(result.error_message));
-        return result;
     }
-
-    std::string status = json.value("status", std::string{});
-    if (status != "success") {
-        result.error_message = json.value("message", std::string{"unknown error"});
-        emit errorOccurred(QString::fromStdString(result.error_message));
-        return result;
-    }
-
-    result.success = true;
-    result.prediction  = json.value("prediction", 0);
-    result.probability = json.value("probability", 0.0);
 
     return result;
 }
 
-void PythonBridge::shutdown()
-{
+void PythonBridge::shutdown() {
     if (process) {
         process->write("EXIT\n");
-        process->waitForBytesWritten(1000);
-        process->waitForFinished(3000);
-
-        if (process->state() == QProcess::Running) {
-            process->kill();
-        }
-
+        process->waitForFinished(1000);
+        process->kill();
         delete process;
         process = nullptr;
     }
-    initialized = false;
 }
