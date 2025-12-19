@@ -21,6 +21,7 @@
 #include <random>
 
 #include "python_bridge.h"
+#include "feature_limits.h"
 #include "model_info.h"
 
 class MainWindow : public QMainWindow {

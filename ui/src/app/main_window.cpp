@@ -217,19 +217,67 @@ std::optional<std::vector<float>> MainWindow::validateAndCollect() {
     std::vector<float> data;
     bool hasError = false;
 
+    static const std::map<std::string, FeatureLimit> rules = {
+        {"age",      {0,   120, true}},
+        {"sex",      {0,   1,   true}},
+        {"cp",       {0,   3,   true}},
+        {"trestbps", {50,  250, false}},
+        {"chol",     {100, 600, false}},
+        {"fbs",      {0,   1,   true}},
+        {"restecg",  {0,   2,   true}},
+        {"thalch",   {50,  250, false}},
+        {"exang",    {0,   1,   true}},
+        {"oldpeak",  {0.0, 10.0, false}},
+        {"slope",    {0,   2,   true}},
+        {"ca",       {0,   4,   true}},
+        {"thal",     {0,   3,   true}}
+    };
+
     for (const auto& feature : modelInfo.features) {
         QLineEdit* field = inputFields[feature];
         QString text = field->text().trimmed();
 
+        bool conversionOk = false;
+        float value = text.toFloat(&conversionOk);
+        bool isValid = true;
+        QString errorMsg;
+
         if (text.isEmpty()) {
-            field->setStyleSheet("border: 2px solid #e74c3c; background: #fdf0ef;");
+            isValid = false;
+            errorMsg = (currentLang == "en") ? "Field is empty" : "Поле порожнє";
+        }
+        else if (!conversionOk) {
+            isValid = false;
+            errorMsg = (currentLang == "en") ? "Must be a number" : "Має бути числом";
+        }
+        else if (rules.count(feature)) {
+            const auto& rule = rules.at(feature);
+
+            if (value < rule.min || value > rule.max) {
+                isValid = false;
+                errorMsg = (currentLang == "en")
+                    ? QString("Value must be between %1 and %2").arg(rule.min).arg(rule.max)
+                    : QString("Значення має бути між %1 та %2").arg(rule.min).arg(rule.max);
+            }
+            else if (rule.isInteger && std::floor(value) != value) {
+                isValid = false;
+                errorMsg = (currentLang == "en") ? "Must be a whole number" : "Має бути цілим числом";
+            }
+        }
+
+        if (!isValid) {
             hasError = true;
+            field->setStyleSheet("border: 2px solid #e74c3c; background: #fdf0ef;");
+            field->setToolTip(errorMsg);
         } else {
             field->setStyleSheet("");
-            data.push_back(text.toFloat());
+            field->setToolTip("");
+            data.push_back(value);
         }
     }
-    return hasError ? std::nullopt : std::make_optional(data);
+
+    if (hasError) return std::nullopt;
+    return data;
 }
 
 void MainWindow::onPredictClicked() {
