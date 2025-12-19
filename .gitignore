@@ -8,3 +8,4 @@
 /model/src/scaler.pkl
 /model/src/best_model.onnx
 /ui/cmake-build-debug/
+/ui/onnxruntime/
