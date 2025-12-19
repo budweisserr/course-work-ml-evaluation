@@ -5,12 +5,15 @@
 #include <QObject>
 #include <QProcess>
 #include <QString>
+#include <QDebug>
 #include <vector>
 #include <string>
 
 #include "model_info.h"
 #include "prediction_result.h"
 #include "json.hpp"
+
+using nmjson = nlohmann::json;
 
 class PythonBridge : public QObject {
   Q_OBJECT
@@ -29,7 +32,7 @@ public:
 
 private:
   QString sendCommand(const QString& command);
-  QJsonObject parseResponse(const QString& response);
+  nmjson parseResponse(const QString& response);
 
   QProcess* process;
   bool initialized;
