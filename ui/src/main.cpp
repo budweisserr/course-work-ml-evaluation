@@ -1,7 +1,11 @@
-#include <iostream>
-#include "json.hpp"
+#include <QApplication>
+#include "main_window.h"
 
-int main() {
-  std::cout << "Hello World!" << std::endl;
-  nlohmann::json json;
+int main(int argc, char *argv[]) {
+  QApplication app(argc, argv);
+
+  MainWindow window;
+  window.show();
+
+  return app.exec();
 }
