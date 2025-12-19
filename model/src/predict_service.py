@@ -2,15 +2,19 @@ import sys
 import json
 import pickle
 import numpy as np
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def load_model():
-    with open('best_model.pkl', 'rb') as f:
+    with open(os.getenv("MODEL_PATH"), 'rb') as f:
         model = pickle.load(f)
 
-    with open('scaler.pkl', 'rb') as f:
+    with open(os.getenv("SCALER_PATH"), 'rb') as f:
         scaler = pickle.load(f)
 
-    with open('model_metadata.json', 'r') as f:
+    with open(os.getenv("METADATA_PATH"), 'r') as f:
         metadata = json.load(f)
 
     return model, scaler, metadata
