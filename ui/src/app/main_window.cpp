@@ -101,10 +101,6 @@ void MainWindow::setupToolbar() {
     randomBtn->setFixedSize(40, 40);
     connect(randomBtn, &QPushButton::clicked, this, &MainWindow::onRandomData);
 
-    themeBtn = new QPushButton("🌙", this);
-    themeBtn->setFixedSize(40, 40);
-    connect(themeBtn, &QPushButton::clicked, this, &MainWindow::onThemeToggle);
-
     langBtn = new QPushButton("UA", this);
     langBtn->setFixedSize(40, 40);
     langBtn->setCheckable(true);
@@ -112,22 +108,15 @@ void MainWindow::setupToolbar() {
 
     toolLayout->addWidget(randomBtn);
     toolLayout->addWidget(langBtn);
-    toolLayout->addWidget(themeBtn);
 
     mainLayout->addLayout(toolLayout);
 }
 
-void MainWindow::onThemeToggle() {
-    isDarkTheme = !isDarkTheme;
-    themeBtn->setText(isDarkTheme ? "☀️" : "🌙");
-    updateTheme();
-}
-
 void MainWindow::updateTheme() {
-    QString bg = isDarkTheme ? "#2c3e50" : "#f5f7fa";
-    QString text = isDarkTheme ? "#ecf0f1" : "#2c3e50";
-    QString inputBg = isDarkTheme ? "#34495e" : "white";
-    QString border = isDarkTheme ? "#7f8c8d" : "#bdc3c7";
+    QString bg = "#f5f7fa";
+    QString text = "#2c3e50";
+    QString inputBg = "white";
+    QString border = "#bdc3c7";
 
     QString style = QString(R"(
         QMainWindow { background-color: %1; }
@@ -242,6 +231,7 @@ std::optional<std::vector<float>> MainWindow::validateAndCollect() {
     }
     return hasError ? std::nullopt : std::make_optional(data);
 }
+
 void MainWindow::onPredictClicked() {
     auto featuresOpt = validateAndCollect();
 

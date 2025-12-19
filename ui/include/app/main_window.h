@@ -33,9 +33,6 @@ private slots:
   void onPredictClicked();
   void onClearClicked();
   void onPythonError(const QString& error);
-
-
-  void onThemeToggle();
   void onLangToggle();
   void onRandomData();
 
@@ -46,7 +43,6 @@ private:
   void updateTexts();
   std::optional<std::vector<float>> validateAndCollect();
 
-  // Components
   QWidget *central;
   QVBoxLayout *mainLayout;
   QHBoxLayout *headerLayout;
@@ -62,7 +58,6 @@ private:
   QPushButton *predictButton;
   QPushButton *clearButton;
 
-  QPushButton *themeBtn;
   QPushButton *langBtn;
   QPushButton *randomBtn;
 
@@ -71,8 +66,6 @@ private:
   std::map<std::string, QLineEdit*> inputFields;
   std::map<std::string, QLabel*> featureLabels;
 
-  // State
-  bool isDarkTheme = false;
   QString currentLang = "en";
 };
 
