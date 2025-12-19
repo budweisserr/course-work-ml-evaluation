@@ -13,9 +13,13 @@
 #include <QScrollArea>
 #include <QFont>
 #include <QDebug>
+#include <QTimer>
+#include <QStyle>
+#include <QDoubleValidator>
 #include <stdexcept>
 #include <map>
 #include <memory>
+#include <optional>
 #include "python_bridge.h"
 
 class MainWindow : public QMainWindow {
@@ -32,7 +36,7 @@ private slots:
 
 private:
   void setupUi();
-  std::vector<float> collectFeatures();
+  std::optional<std::vector<float>> validateAndCollect();
 
   std::unique_ptr<PythonBridge> bridge;
   ModelInfo modelInfo;
