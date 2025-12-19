@@ -3,10 +3,16 @@ project(course-work-ml-evaluation)
 
 set(CMAKE_CXX_STANDARD 17)
 
+set(SOURCES_HEADERS
+        include/app/main_window.h
+        include/app/python_bridge.h
+)
+
 set(SOURCES
         src/main.cpp
         src/app/python_bridge.cpp
         src/app/main_window.cpp
+        ${SOURCES_HEADERS}
 )
 
 set(QT_REQUIRED_COMPONENTS Widgets)
